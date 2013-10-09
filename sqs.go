@@ -13,7 +13,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
-	"launchpad.net/goamz/aws"
+	"github.com/librato/goamz-aws/aws"
 	"net/http"
 	"net/url"
 	"path"

@@ -4,7 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"launchpad.net/goamz/aws"
+	"github.com/librato/goamz-aws/aws"
 	"net/http"
 	"net/url"
 	"sort"
