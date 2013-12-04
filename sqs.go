@@ -12,8 +12,8 @@ package sqs
 import (
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
 	"github.com/librato/goamz-aws/aws"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -136,7 +136,7 @@ func buildError(r *http.Response) error {
 	err := Error{}
 	err.StatusCode = r.StatusCode
 	err.StatusMsg = r.Status
-  body, _ := ioutil.ReadAll(r.Body)
+	body, _ := ioutil.ReadAll(r.Body)
 	xml.Unmarshal(body, &err)
 	return &err
 }
@@ -157,7 +157,7 @@ func (sqs *SQS) doRequest(req *http.Request, resp interface{}) error {
 	if r.StatusCode != 200 {
 		return buildError(r)
 	}
-  body, _ := ioutil.ReadAll(r.Body)
+	body, _ := ioutil.ReadAll(r.Body)
 	return xml.Unmarshal(body, resp)
 }
 
@@ -258,7 +258,13 @@ func (q *Queue) DeleteQueue() error {
 // DeleteMessage deletes a message from the queue.
 //
 // See http://goo.gl/t8jnk for more details.
-func (q *Queue) DeleteMessage() error {
+func (q *Queue) DeleteMessage(m *Message) error {
+	var resp interface{}
+	params := url.Values{}
+	params.Set("ReceiptHandle", m.ReceiptHandle)
+	if err := q.get("DeleteMessage", q.path, params, &resp); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -287,8 +293,9 @@ func (q *Queue) GetQueueAttributes(attrs ...Attribute) (*QueueAttributes, error)
 }
 
 type Message struct {
-	Id   string `xml:"ReceiveMessageResult>Message>MessageId"`
-	Body string `xml:"ReceiveMessageResult>Message>Body"`
+	Id            string `xml:"ReceiveMessageResult>Message>MessageId"`
+	Body          string `xml:"ReceiveMessageResult>Message>Body"`
+	ReceiptHandle string `xml:"ReceiveMessageResult>Message>ReceiptHandle"`
 }
 
 // ReceiveMessage retrieves one or more messages from the queue.
