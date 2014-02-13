@@ -12,7 +12,6 @@ package sqs
 import (
 	"encoding/xml"
 	"fmt"
-	"github.com/librato/goamz-aws/aws"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -20,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/librato/goamz-aws/aws"
 )
 
 // The SQS type encapsulates operations with a specific SQS region.
@@ -118,27 +119,42 @@ func (sqs *SQS) newRequest(method, action, url_ string, params url.Values) (*htt
 	return req, nil
 }
 
-// Error encapsulates an error returned by SDB.
-type Error struct {
-	StatusCode int    // HTTP status code (200, 403, ...)
-	StatusMsg  string // HTTP status message ("Service Unavailable", "Bad Request", ...)
-	Type       string // Whether the error was a receiver or sender error
-	Code       string // SQS error code ("InvalidParameterValue", ...)
-	Message    string // The human-oriented error message
-	RequestId  string // A unique ID for this request
+type EmbeddedError struct {
+	Type    string
+	Code    string
+	Message string
 }
 
-func (err *Error) Error() string {
-	return err.Message
+// Error encapsulates an error returned by SDB.
+type ErrorResponse struct {
+	StatusCode    int           // HTTP status code (200, 403, ...)
+	StatusMsg     string        // HTTP status message ("Service Unavailable", "Bad Request", ...)
+	EmbeddedError EmbeddedError `"xml:"Error"`
+	RequestId     string        // A unique ID for this request
+}
+
+func (e ErrorResponse) Error() string {
+	return fmt.Sprintf("SQS Error [code=%d status=%q request_id=%q sqs_type=%q sqs_code=%q sqs_message=%q]",
+		e.StatusCode,
+		e.StatusMsg,
+		e.RequestId,
+		e.EmbeddedError.Type,
+		e.EmbeddedError.Code,
+		e.EmbeddedError.Message)
 }
 
 func buildError(r *http.Response) error {
-	err := Error{}
-	err.StatusCode = r.StatusCode
-	err.StatusMsg = r.Status
-	body, _ := ioutil.ReadAll(r.Body)
-	xml.Unmarshal(body, &err)
-	return &err
+	sqsError := ErrorResponse{}
+	sqsError.StatusCode = r.StatusCode
+	sqsError.StatusMsg = r.Status
+	body, ioErr := ioutil.ReadAll(r.Body)
+	if ioErr != nil {
+		return fmt.Errorf("Could not read error response body: %s", ioErr)
+	}
+	if xmlErr := xml.Unmarshal(body, &sqsError); xmlErr != nil {
+		return fmt.Errorf("Could not unmarshal error response body from xml: %s", xmlErr)
+	}
+	return &sqsError
 }
 
 func (sqs *SQS) doRequest(req *http.Request, resp interface{}) error {
